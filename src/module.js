@@ -16,6 +16,7 @@ function $RestcaseProvider () {
     methodDefaults: {
       method: 'GET'
     },
+    url: '',
     methods: {
       fetch: {
         method: 'GET'
@@ -29,6 +30,8 @@ function $RestcaseProvider () {
     }
   };
 
+  var collectionDefaults = this.defaults.collectionDefaults = {};
+
   function $RestcaseFactory ($http) {
     var $restcase = {};
 
@@ -41,6 +44,10 @@ function $RestcaseProvider () {
     }
 
     function resolve (url, attributes) {
+      if(!_.isString(url)) {
+        throw new Error('Url must be a string');
+      }
+
       var newUrl = url;
       var matches = url.match(url_resolve_regexp);
       var urlAttrs = matches ? matches.map(function (match) {
@@ -75,10 +82,9 @@ function $RestcaseProvider () {
       return newUrl;
     }
 
+    var Collection = Restcase.Collection.extend(collectionDefaults);
+
     var Model = Restcase.Model.extend(modelDefaults).extend({
-      getUrl: function () {
-        return this.url;
-      },
       hasMany: function (Target, foreignKey, options) {
         var targetModelName = Target.prototype.modelName.toLowerCase();
         var targetNewUrl = defaults.apiPrefix + '/' + this.modelName.toLowerCase() + '/' + attribute(this.idAttribute) + '/' + pluralize(targetModelName);
@@ -86,7 +92,11 @@ function $RestcaseProvider () {
         targetNewUrl = resolve(targetNewUrl, this.attributes);
 
         var NewTarget = Target.extend({
-          url: targetNewUrl
+          methods: {
+            fetch: {
+              url: targetNewUrl
+            }
+          }
         });
 
         var attributes = {};
@@ -104,8 +114,14 @@ function $RestcaseProvider () {
       initialize: function () {
         var model = this;
         var attributes = this.attributes;
-        var url = this.getUrl();
 
+        console.log('You are initializing', this.modelName);
+
+        if(_.isUndefined(this.url) || _.isEmpty(this.url)) {
+          this.url = defaults.apiPrefix + '/' + this.modelName.toLowerCase() + '/' + attribute(this.idAttribute);
+        }
+
+        // Defining methods
         _.forEach(this.methods, function (value, key) {
           var options = _.extend({}, modelDefaults.methodDefaults, value);
 
@@ -116,19 +132,20 @@ function $RestcaseProvider () {
               options.method = 'PATCH';
             }
 
-            if(angular.isDefined(key.url)) {
-              methodUrl = key.url;
-            } else if (angular.isDefined(url)) {
-              methodUrl = url;
+            if(angular.isDefined(value.url)) {
+              methodUrl = value.url;
+            } else if (angular.isDefined(model.url)) {
+              methodUrl = model.url;
             }
 
             options.url = resolve(methodUrl, attributes);
+            options.data = {};
 
-            var promise = $http(options).then(function resolved (res) {
+            _.extend(options.data, this.attributes);
+
+            return $http(options).then(function resolved (res) {
               return res.data;
-            });
-
-            return promise.then(function (data) {
+            }).then(function (data) {
               // If the data is beeing received from the serverside
               // Just update our model and pass it, and return itself
               if(!_.isArray(data) && (key === 'fetch' || key === 'save')) {
@@ -149,14 +166,13 @@ function $RestcaseProvider () {
 
               return data;
             });
-
-            return promise;
           };
         }, this);
       }
     });
 
     $restcase.Model = Model;
+    $restcase.Collection = Collection;
 
     return $restcase;
   }

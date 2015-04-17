@@ -168,4 +168,59 @@ describe('victorqueiroz.ngRestcase', function () {
 
     $httpBackend.flush();
   }));
+
+  it('should update the pivot', inject(function ($restcase, $httpBackend) {
+    $httpBackend.expectPOST('/api/user', {
+      name: 'Tom Morry'
+    }).respond({
+      name: 'Tom Morry',
+      id: 4
+    });
+
+    $httpBackend.expectGET('/api/user/4/posts').respond([{
+      title: 'Post 1',
+      id: 1
+    }, {
+      title: 'Post 2',
+      id: 2
+    }, {
+      title: 'Post 3',
+      id: 3
+    }]);
+
+    var User = $restcase.Model.extend({
+      modelName: 'User',
+      posts: function () {
+        return this.hasMany(Post);
+      }
+    });
+
+    var Post = $restcase.Model.extend({
+      modelName: 'Post'
+    });
+
+    var user = new User({
+      name: 'Tom Morry'
+    });
+
+    var createdAt = new Date();
+
+    user.save().then(function (user) {
+      expect(user.get('id')).toBe(4);
+
+      return user.posts();
+    }).then(function (posts) {
+      expect(posts.length).toBe(3);
+
+      var post = posts[0];
+
+      return post.save({
+        createdAt: createdAt
+      });
+    }).then(function (post) {
+      
+    });
+
+    $httpBackend.flush();
+  }));
 });
