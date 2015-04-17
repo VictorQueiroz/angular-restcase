@@ -33,7 +33,7 @@ angular.module('app', ['victorqueiroz.ngRestcase'])
       }
     });
   })
-  .controller('UserController', function ($scope) {
+  .controller('UserController', function ($scope, Post) {
     $scope.user = new User();
 
     // It will save as a new model
@@ -41,7 +41,7 @@ angular.module('app', ['victorqueiroz.ngRestcase'])
       return user.save();
     };
   })
-  .controller('PostController', function ($scope) {
+  .controller('PostController', function ($scope, Post) {
     $scope.post = new Post({
       id: Math.floor((Math.random() * 10) + 1)
     });
@@ -57,9 +57,8 @@ angular.module('app', ['victorqueiroz.ngRestcase'])
   });
 ```
 
-## Relationship
+## Relationship (methods)
 ### hasMany(Target, foreignKey)
-
 ```js
 var Post = $restcase.Model.extend({
   url: '/api/post/{id}',
