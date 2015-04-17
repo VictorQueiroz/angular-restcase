@@ -1,6 +1,6 @@
 /**
  * angular-restcase - 
- * @version v0.0.1
+ * @version v0.0.2
  * @link https://github.com/VictorQueiroz/angular-restcase
  * @license MIT
  */
@@ -14,7 +14,9 @@ function $RestcaseProvider () {
 
   this.$get = $RestcaseFactory;
 
-  this.defaults = {};
+  var defaults = this.defaults = {
+    apiPrefix: '/api'
+  };
 
   var modelDefaults = this.defaults.modelDefaults = {
     idAttribute: 'id',
@@ -41,11 +43,17 @@ function $RestcaseProvider () {
       return '{' + key + '}';
     }
 
+    function pluralize (string) {
+      return string + 's';
+    }
+
     function resolve (url, attributes) {
       var newUrl = url;
-      var urlAttrs = url.match(url_resolve_regexp).map(function (match) {
-        return match.replace(/[\{\}]/g, '');
-      });
+      var matches = url.match(url_resolve_regexp);
+      var urlAttrs = matches ? matches.map(function (match) {
+        var regexp = /[\{\}]/g;
+        return match.replace(regexp, '');
+      }) : [];
 
       _.forEach(attributes, function (value, key) {
         if(urlAttrs.indexOf(key) !== -1) {
@@ -67,7 +75,7 @@ function $RestcaseProvider () {
 
       // Remove possible unutilized /
       // at the end of the url, which is
-      // very creepy. We don't wanna see 
+      // very creepy. We don't wanna see
       // that
       newUrl = newUrl.replace(/(\/)+$/, '');
 
@@ -78,6 +86,28 @@ function $RestcaseProvider () {
       getUrl: function () {
         return this.url;
       },
+      hasMany: function (Target, foreignKey, options) {
+        var targetModelName = Target.prototype.modelName.toLowerCase();
+        var targetNewUrl = defaults.apiPrefix + '/' + this.modelName.toLowerCase() + '/' + attribute(this.idAttribute) + '/' + pluralize(targetModelName);
+
+        targetNewUrl = resolve(targetNewUrl, this.attributes);
+
+        var NewTarget = Target.extend({
+          url: targetNewUrl
+        });
+
+        var attributes = {};
+
+        if(_.isUndefined(foreignKey)) {
+          foreignKey = this.modelName + '_id';
+        }
+
+        attributes[foreignKey] = this.get(this.idAttribute);
+
+        var newTarget = new NewTarget(attributes);
+
+        return newTarget.fetch();
+      },
       initialize: function () {
         var model = this;
         var attributes = this.attributes;
@@ -87,11 +117,19 @@ function $RestcaseProvider () {
           var options = _.extend({}, modelDefaults.methodDefaults, value);
 
           this[key] = function () {
+            var methodUrl;
+
             if(key === 'save' && !model.isNew()) {
               options.method = 'PATCH';
             }
 
-            options.url = resolve(url, attributes);
+            if(angular.isDefined(key.url)) {
+              methodUrl = key.url;
+            } else if (angular.isDefined(url)) {
+              methodUrl = url;
+            }
+
+            options.url = resolve(methodUrl, attributes);
 
             var promise = $http(options).then(function resolved (res) {
               return res.data;
@@ -100,12 +138,20 @@ function $RestcaseProvider () {
             return promise.then(function (data) {
               // If the data is beeing received from the serverside
               // Just update our model and pass it, and return itself
-              if(key === 'fetch' || key === 'save') {
+              if(!_.isArray(data) && (key === 'fetch' || key === 'save')) {
                 if(_.isObject(data) && !(_.isUndefined(data[model.idAttribute]))) {
                   model.set(data);
                 }
 
                 return model;
+              }
+
+              if(_.isArray(data)) {
+                data = data.map(function (data) {
+                  var newModel = model.clone();
+                  newModel.set(data);
+                  return newModel;
+                });
               }
 
               return data;
