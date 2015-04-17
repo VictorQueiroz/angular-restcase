@@ -91,4 +91,81 @@ describe('victorqueiroz.ngRestcase', function () {
 
     $httpBackend.flush();
   }));
+
+  it('should store new models and update not newer models', inject(function ($restcase, $rootScope, $httpBackend) {
+    $httpBackend.whenPOST('/api/user').respond(200, {
+      id: 4,
+      name: 'My new name',
+      age: 19
+    });
+
+    $httpBackend.whenPATCH('/api/user/4').respond(200, {
+      id: 4,
+      name: 'Victor Queiroz',
+      age: 19
+    });
+
+    var user = new User({
+      name: 'My new name',
+      age: 19
+    });
+
+    user.save().then(function (user) {
+      expect(user.get('name')).toBe('My new name');
+      expect(user.get('age')).toBe(19);
+
+      user.set('name', 'Victor Queiroz');
+
+      return user.save();
+    }).then(function (user) {
+      expect(user.get('name')).toBe('Victor Queiroz');
+    });
+
+    $httpBackend.flush();
+  }));
+
+  it('should do a hasMany relation', inject(function ($restcase, $rootScope, $httpBackend) {
+    $httpBackend.whenPOST('/api/user').respond(200, {
+      id: 4,
+      name: 'My new name',
+      age: 19
+    });
+
+    $httpBackend.whenPATCH('/api/user/4').respond(200, {
+      id: 4,
+      name: 'Victor Queiroz',
+      age: 19
+    });
+
+    $httpBackend.whenGET('/api/user/4/posts').respond(200, [{
+      id: 1,
+      title: 'My post',
+      body: 'That\'s it, you have just one post'
+    }]);
+
+    var user = new User({
+      name: 'My new name',
+      age: 19
+    });
+
+    user.save().then(function (user) {
+      expect(user.get('name')).toBe('My new name');
+      expect(user.get('age')).toBe(19);
+
+      user.set('name', 'Victor Queiroz');
+
+      return user.save();
+    }).then(function (user) {
+      expect(user.get('name')).toBe('Victor Queiroz');
+
+      return user.posts();
+    }).then(function (posts) {
+      posts.forEach(function (post) {
+        expect(post.get('body')).toBe('That\'s it, you have just one post');
+        expect(post.get('id')).toBe(1);
+      });
+    });
+
+    $httpBackend.flush();
+  }));
 });

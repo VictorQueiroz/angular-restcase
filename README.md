@@ -15,12 +15,13 @@ bower install --save angular-restcase
 angular.module('app', ['victorqueiroz.ngRestcase'])
   .config(function ($restcaseProvider) {
     // Because I'm a MongoDB guy.
-    $restcaseProvider.modelDefaults.idAttribute = '_id';
+    $restcaseProvider.defaults.modelDefaults.idAttribute = '_id';
     // Or not:
-    $restcaseProvider.modelDefaults.idAttribute = 'id';
+    $restcaseProvider.defaults.modelDefaults.idAttribute = 'id';
   })
   .factory('User', function ($restcase) {
     return $restcase.Model.extend({
+      modelName: 'User',
       url: '/api/user/{id}',
       // By default, there is no need for defining
       // new methods, but you can do that if you want
@@ -54,4 +55,45 @@ angular.module('app', ['victorqueiroz.ngRestcase'])
       return post.save();
     };
   });
+```
+
+## Relationship
+### hasMany(Target, foreignKey)
+
+```js
+var Post = $restcase.Model.extend({
+  url: '/api/post/{id}',
+  modelName: 'Post',
+  getPostTitle: function () {
+    return this.get('title');
+  }
+});
+
+var User = $restcase.Model.extend({
+  url: '/api/user/{id}',
+  modelName: 'User',
+  posts: function () {
+    return this.hasMany(Post);
+  }
+});
+
+new User({
+  id: 1
+}).posts().then(function (posts) {
+  posts.forEach(function (post) {
+    expect(post.get('name')).toBe('The post title');
+  });
+});
+```
+
+The code bellow, will make a request like this
+
+```
+$restcaseProvider.defaults.apiPrefix/User.prototype.modelName/User.prototype.idAttribute/Target.prototype.modelName + s
+```
+
+Resulting on this:
+
+```
+GET /api/user/1/posts
 ```
