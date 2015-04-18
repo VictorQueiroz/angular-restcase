@@ -170,6 +170,8 @@ describe('victorqueiroz.ngRestcase', function () {
   }));
 
   it('should update the pivot', inject(function ($restcase, $httpBackend) {
+    var createdAt = (new Date()).toJSON();
+
     $httpBackend.expectPOST('/api/user', {
       name: 'Tom Morry'
     }).respond({
@@ -188,6 +190,14 @@ describe('victorqueiroz.ngRestcase', function () {
       id: 3
     }]);
 
+    $httpBackend.expectPATCH('/api/post/1', {
+      createdAt: createdAt
+    }).respond({
+      name: 'Post 1',
+      createdAt: createdAt,
+      id: 1
+    });
+
     var User = $restcase.Model.extend({
       modelName: 'User',
       posts: function () {
@@ -196,14 +206,15 @@ describe('victorqueiroz.ngRestcase', function () {
     });
 
     var Post = $restcase.Model.extend({
-      modelName: 'Post'
+      modelName: 'Post',
+      user: function () {
+        return this.belongsTo(User);
+      }
     });
 
     var user = new User({
       name: 'Tom Morry'
     });
-
-    var createdAt = new Date();
 
     user.save().then(function (user) {
       expect(user.get('id')).toBe(4);
@@ -218,7 +229,10 @@ describe('victorqueiroz.ngRestcase', function () {
         createdAt: createdAt
       });
     }).then(function (post) {
-      
+      expect(post.get('createdAt')).toBe(createdAt);
+      expect(post.get('id')).toBe(1);
+      expect(post.get('title')).toBe('Post 1');
+      expect(post.get('user_id')).toBe(4);
     });
 
     $httpBackend.flush();
