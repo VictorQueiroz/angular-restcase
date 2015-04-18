@@ -15,7 +15,7 @@ module.exports = function(config) {
 
     // list of files / patterns to load in the browser
     files: [
-      'bower_components/underscore/underscore.js',
+      'bower_components/lodash/lodash.js',
       'bower_components/restcase/dist/restcase.js',
       'bower_components/angular/angular.js',
       'bower_components/angular-mocks/angular-mocks.js',

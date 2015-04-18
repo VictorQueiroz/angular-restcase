@@ -1,5 +1,13 @@
 var url_resolve_regexp = /(?:\{)(\w)+(?:\})/g;
 
+function toLowerCase (string) {
+  return string.toLowerCase();
+}
+
+function toUpperCase (string) {
+  return string.toUpperCase();
+}
+
 function $RestcaseProvider () {
   if(angular.isUndefined(Restcase)) {
     throw new Error('You must load Restcase before load this module, aborting');
@@ -16,6 +24,7 @@ function $RestcaseProvider () {
     methodDefaults: {
       method: 'GET'
     },
+    url: '',
     methods: {
       fetch: {
         method: 'GET'
@@ -29,6 +38,8 @@ function $RestcaseProvider () {
     }
   };
 
+  var collectionDefaults = this.defaults.collectionDefaults = {};
+
   function $RestcaseFactory ($http) {
     var $restcase = {};
 
@@ -41,6 +52,10 @@ function $RestcaseProvider () {
     }
 
     function resolve (url, attributes) {
+      if(!_.isString(url)) {
+        throw new Error('Url must be a string');
+      }
+
       var newUrl = url;
       var matches = url.match(url_resolve_regexp);
       var urlAttrs = matches ? matches.map(function (match) {
@@ -75,24 +90,32 @@ function $RestcaseProvider () {
       return newUrl;
     }
 
-    var Model = Restcase.Model.extend(modelDefaults).extend({
-      getUrl: function () {
-        return this.url;
-      },
-      hasMany: function (Target, foreignKey, options) {
+    var Collection = Restcase.Collection.extend(collectionDefaults);
+
+    var Model = Restcase.Model;
+
+    _.extend(Model.prototype, Restcase.Events, modelDefaults, {
+      hasMany: function hasMany (Target, foreignKey) {
         var targetModelName = Target.prototype.modelName.toLowerCase();
         var targetNewUrl = defaults.apiPrefix + '/' + this.modelName.toLowerCase() + '/' + attribute(this.idAttribute) + '/' + pluralize(targetModelName);
 
         targetNewUrl = resolve(targetNewUrl, this.attributes);
 
-        var NewTarget = Target.extend({
-          url: targetNewUrl
+        var attributes = {};
+        var newTargetMethods = {};
+
+        _.extend(newTargetMethods, modelDefaults.methods, {
+          fetch: {
+            url: targetNewUrl
+          }
         });
 
-        var attributes = {};
+        var NewTarget = Target.extend({
+          methods: newTargetMethods
+        });
 
         if(_.isUndefined(foreignKey)) {
-          foreignKey = this.modelName + '_id';
+          foreignKey = toLowerCase(this.modelName) + '_id';
         }
 
         attributes[foreignKey] = this.get(this.idAttribute);
@@ -104,31 +127,45 @@ function $RestcaseProvider () {
       initialize: function () {
         var model = this;
         var attributes = this.attributes;
-        var url = this.getUrl();
 
+        if(_.isUndefined(this.url) || _.isEmpty(this.url)) {
+          this.url = defaults.apiPrefix + '/' + toLowerCase(this.modelName) + '/' + attribute(this.idAttribute);
+        }
+
+        // Defining methods
         _.forEach(this.methods, function (value, key) {
           var options = _.extend({}, modelDefaults.methodDefaults, value);
 
-          this[key] = function () {
+          this[key] = function (methodAttrs) {
             var methodUrl;
 
             if(key === 'save' && !model.isNew()) {
               options.method = 'PATCH';
             }
 
-            if(angular.isDefined(key.url)) {
-              methodUrl = key.url;
-            } else if (angular.isDefined(url)) {
-              methodUrl = url;
+            options.method = toUpperCase(options.method);
+
+            if(angular.isDefined(value.url)) {
+              methodUrl = value.url;
+            } else if (angular.isDefined(model.url)) {
+              methodUrl = model.url;
             }
 
             options.url = resolve(methodUrl, attributes);
 
-            var promise = $http(options).then(function resolved (res) {
-              return res.data;
-            });
+            options.data = {};
 
-            return promise.then(function (data) {
+            if(options.method === 'POST') {
+              _.extend(options.data, this.attributes);
+            } else if (options.method === 'PATCH' || options.method === 'PUT') {
+              if(angular.isDefined(methodAttrs)) {
+                _.extend(options.data, methodAttrs);
+              }
+            }
+
+            return $http(options).then(function resolved (res) {
+              return res.data;
+            }).then(function (data) {
               // If the data is beeing received from the serverside
               // Just update our model and pass it, and return itself
               if(!_.isArray(data) && (key === 'fetch' || key === 'save')) {
@@ -139,7 +176,9 @@ function $RestcaseProvider () {
                 return model;
               }
 
-              if(_.isArray(data)) {
+              // If the data returned from serverside is an array
+              // put this into an collection
+              if(_.isArray(data)) { // fixme
                 data = data.map(function (data) {
                   var newModel = model.clone();
                   newModel.set(data);
@@ -149,14 +188,13 @@ function $RestcaseProvider () {
 
               return data;
             });
-
-            return promise;
           };
         }, this);
       }
     });
 
     $restcase.Model = Model;
+    $restcase.Collection = Collection;
 
     return $restcase;
   }
