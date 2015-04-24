@@ -6,19 +6,24 @@ describe('victorqueiroz.ngRestcase', function () {
   beforeEach(inject(function ($restcase) {
     Post = $restcase.Model.extend({
       url: '/api/post/{id}',
-      modelName: 'Post'
-    });
-    User = $restcase.Model.extend({
-      url: '/api/user/{id}',
-      modelName: 'User',
-      posts: function () {
-        var Target = Post.extend({
-          url: '/api/user/{user_id}/posts/{id}'
+      author: function () {
+        var Target = User.extend({
+          url: '/api/post/' + this.get('id') + '/author'
         });
 
         return new Target({
-          user_id: this.get('id')
+          id: this.get('id')
         });
+      }
+    });
+    User = $restcase.Model.extend({
+      url: '/api/user/{id}',
+      posts: function () {
+        var Target = Post.extend({
+          url: '/api/user/' + this.get('id') + '/posts/{id}'
+        });
+
+        return new Target();
       }
     });
   }));
@@ -72,32 +77,118 @@ describe('victorqueiroz.ngRestcase', function () {
     $httpBackend.flush();
   }));
 
-  it('should resolve fn at method headers', inject(function ($httpBackend) {
-    $httpBackend.expectPATCH('/api/user/1', {
-      name: 'Victor'
+  it('should get a related of a related model', inject(function ($httpBackend) {
+    $httpBackend.expectGET('/api/user/1/posts').respond([{
+      id: 4,
+      title: 'My first post',
+      body: '<p>Text here</p>'
+    }]);
+
+    $httpBackend.expectPATCH('/api/user/1/posts/4', {
+      body: '<p>My new body here</p>'
+    }).respond({
+      id: 4,
+      title: 'My first post',
+      body: '<p>My new body here</p>'
+    });
+
+    $httpBackend.expectGET('/api/user/1/posts/4').respond({
+      id: 4,
+      user_id: 1,
+      title: 'My first post',
+      body: '<p>My new body here</p>'
+    });
+
+    $httpBackend.expectGET('/api/post/4/author').respond({
+      id: 1,
+      name: 'Victor Queiroz'
+    });
+
+    new User({
+      id: 1
+    }).posts().fetch().then(function (posts) {
+      return posts[0].save({
+        body: '<p>My new body here</p>'
+      });
+    }).then(function (post) {
+      expect(post.get('body')).toBe('<p>My new body here</p>');
+
+      return post.clone().set({
+        user_id: 1,
+        id: 4
+      });
+    }).then(function (post) {
+      return post.fetch();
+    }).then(function (post) {
+      expect(post.get('user_id')).toBe(1);
+
+      return post.author().fetch();
+    }).then(function (author) {
+      expect(author.get('name')).toBe('Victor Queiroz');
+    });
+
+    $httpBackend.flush();
+  }));
+
+  it('should update a related of a related model', inject(function ($httpBackend) {
+    $httpBackend.expectGET('/api/user/1/posts').respond([{
+      id: 4,
+      title: 'My first post',
+      body: '<p>Text here</p>'
+    }]);
+
+    $httpBackend.expectPATCH('/api/user/1/posts/4', {
+      body: '<p>My new body here</p>'
+    }).respond({
+      id: 4,
+      title: 'My first post',
+      body: '<p>My new body here</p>'
+    });
+
+    $httpBackend.expectGET('/api/user/1/posts/4').respond({
+      id: 4,
+      user_id: 1,
+      title: 'My first post',
+      body: '<p>My new body here</p>'
+    });
+
+    $httpBackend.expectGET('/api/post/4/author').respond({
+      id: 1,
+      name: 'Victor Queiroz'
+    });
+
+    $httpBackend.expectPATCH('/api/post/4/author', {
+      name: 'New author name'
     }).respond({
       id: 1,
-      name: 'Victor',
-      age: 18
+      name: 'New author name'
     });
 
-    var UserModel = User.extend({
-      method: {
-        save: {
-          headers: {
-            'My-Header': function () {
-              return 'My_Header_Value';
-            }
-          }
-        }
-      }
-    });
-
-    new UserModel({
+    new User({
       id: 1
-    }).save({
-      name: 'Victor'
-    }).then(function (user) {
+    }).posts().fetch().then(function (posts) {
+      return posts[0].save({
+        body: '<p>My new body here</p>'
+      });
+    }).then(function (post) {
+      expect(post.get('body')).toBe('<p>My new body here</p>');
+
+      return post.clone().set({
+        user_id: 1,
+        id: 4
+      });
+    }).then(function (post) {
+      return post.fetch();
+    }).then(function (post) {
+      expect(post.get('user_id')).toBe(1);
+
+      return post.author().fetch();
+    }).then(function (author) {
+      expect(author.get('name')).toBe('Victor Queiroz');
+
+      return author.save({
+        name: 'New author name'
+      });
     });
 
     $httpBackend.flush();

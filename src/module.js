@@ -35,7 +35,7 @@ function $RestcaseProvider () {
 
   this.defaults.collection = {};
 
-  function $RestcaseFactory ($http) {
+  function $RestcaseFactory ($http, $interpolate) {
     var $restcase = {};
 
     function attribute (key) {
