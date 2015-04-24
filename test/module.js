@@ -12,7 +12,13 @@ describe('victorqueiroz.ngRestcase', function () {
       url: '/api/user/{id}',
       modelName: 'User',
       posts: function () {
-        return this.hasMany(Post);
+        var Target = Post.extend({
+          url: '/api/user/{user_id}/posts/{id}'
+        });
+
+        return new Target({
+          user_id: this.get('id')
+        });
       }
     });
   }));
@@ -22,217 +28,76 @@ describe('victorqueiroz.ngRestcase', function () {
     $httpBackend.verifyNoOutstandingRequest();
   }));
 
-  it('should resolve the url', inject(function ($restcase, $rootScope, $httpBackend) {
-    $httpBackend.whenGET('/api/user/1').respond(200, {
-      id: 1,
-      name: 'Victor Queiroz'
-    });
-
-    var user = new User({
-      id: 1
-    });
-
-    user.fetch().then(function (user) {
-      expect(user.get('name')).toBe('Victor Queiroz');
-    });
-
-    $httpBackend.flush();
-  }));
-
-  it('should update the model with the new attributes returned from server', inject(function ($restcase, $rootScope, $httpBackend) {
-    $httpBackend.whenGET('/api/user/2').respond(200, {
-      id: 2,
-      name: 'Victor Queiroz'
-    });
-
-    $httpBackend.whenPATCH('/api/user/2').respond(200, {
-      id: 2,
-      name: 'My new name',
-      age: 19
-    });
-
-    var user = new User({
-      id: 2
-    });
-
-    user.fetch().then(function (user) {
-      expect(user.get('name')).toBe('Victor Queiroz');
-
-      user.set({
-        name: 'My new name',
-        age: 19
-      });
-
-      return user.save();
-    }).then(function (user) {
-      expect(user.get('name')).toBe('My new name');
-      expect(user.get('age')).toBe(19);
-    });
-
-    $httpBackend.flush();
-  }));
-
-  it('should save the new models', inject(function ($restcase, $rootScope, $httpBackend) {
-    $httpBackend.whenPOST('/api/user').respond(200, {
-      id: 1,
-      name: 'My new name',
-      age: 19
-    });
-
-    var user = new User({
-      name: 'My new name',
-      age: 19
-    });
-
-    user.save().then(function (user) {
-      expect(user.get('name')).toBe('My new name');
-      expect(user.get('age')).toBe(19);
-    });
-
-    $httpBackend.flush();
-  }));
-
-  it('should store new models and update not newer models', inject(function ($restcase, $rootScope, $httpBackend) {
-    $httpBackend.whenPOST('/api/user').respond(200, {
+  it('should fetch a model', inject(function ($httpBackend) {
+    $httpBackend.expectGET('/api/user/1/posts').respond([{
       id: 4,
-      name: 'My new name',
-      age: 19
-    });
-
-    $httpBackend.whenPATCH('/api/user/4').respond(200, {
-      id: 4,
-      name: 'Victor Queiroz',
-      age: 19
-    });
-
-    var user = new User({
-      name: 'My new name',
-      age: 19
-    });
-
-    user.save().then(function (user) {
-      expect(user.get('name')).toBe('My new name');
-      expect(user.get('age')).toBe(19);
-
-      user.set('name', 'Victor Queiroz');
-
-      return user.save();
-    }).then(function (user) {
-      expect(user.get('name')).toBe('Victor Queiroz');
-    });
-
-    $httpBackend.flush();
-  }));
-
-  it('should do a hasMany relation', inject(function ($restcase, $rootScope, $httpBackend) {
-    $httpBackend.whenPOST('/api/user').respond(200, {
-      id: 4,
-      name: 'My new name',
-      age: 19
-    });
-
-    $httpBackend.whenPATCH('/api/user/4').respond(200, {
-      id: 4,
-      name: 'Victor Queiroz',
-      age: 19
-    });
-
-    $httpBackend.whenGET('/api/user/4/posts').respond(200, [{
-      id: 1,
-      title: 'My post',
-      body: 'That\'s it, you have just one post'
+      title: 'My first post',
+      body: '<p>Text here</p>'
     }]);
 
-    var user = new User({
-      name: 'My new name',
-      age: 19
-    });
-
-    user.save().then(function (user) {
-      expect(user.get('name')).toBe('My new name');
-      expect(user.get('age')).toBe(19);
-
-      user.set('name', 'Victor Queiroz');
-
-      return user.save();
-    }).then(function (user) {
-      expect(user.get('name')).toBe('Victor Queiroz');
-
-      return user.posts();
-    }).then(function (posts) {
-      posts.forEach(function (post) {
-        expect(post.get('body')).toBe('That\'s it, you have just one post');
-        expect(post.get('id')).toBe(1);
-      });
+    new User({
+      id: 1
+    }).posts().fetch().then(function (posts) {
+      expect(posts[0].get('body')).toBe('<p>Text here</p>');
     });
 
     $httpBackend.flush();
   }));
 
-  it('should update the pivot', inject(function ($restcase, $httpBackend) {
-    var createdAt = (new Date()).toJSON();
-
-    $httpBackend.expectPOST('/api/user', {
-      name: 'Tom Morry'
-    }).respond({
-      name: 'Tom Morry',
-      id: 4
-    });
-
-    $httpBackend.expectGET('/api/user/4/posts').respond([{
-      title: 'Post 1',
-      id: 1
-    }, {
-      title: 'Post 2',
-      id: 2
-    }, {
-      title: 'Post 3',
-      id: 3
+  it('should save a model', inject(function ($httpBackend) {
+    $httpBackend.expectGET('/api/user/1/posts').respond([{
+      id: 4,
+      title: 'My first post',
+      body: '<p>Text here</p>'
     }]);
 
-    $httpBackend.expectPATCH('/api/post/1', {
-      createdAt: createdAt
+    $httpBackend.expectPATCH('/api/user/1/posts/4', {
+      body: '<p>My new body here</p>'
     }).respond({
-      name: 'Post 1',
-      createdAt: createdAt,
+      id: 4,
+      title: 'My first post',
+      body: '<p>My new body here</p>'
+    });
+
+    new User({
       id: 1
-    });
-
-    var User = $restcase.Model.extend({
-      modelName: 'User',
-      posts: function () {
-        return this.hasMany(Post);
-      }
-    });
-
-    var Post = $restcase.Model.extend({
-      modelName: 'Post',
-      user: function () {
-        return this.belongsTo(User);
-      }
-    });
-
-    var user = new User({
-      name: 'Tom Morry'
-    });
-
-    user.save().then(function (user) {
-      expect(user.get('id')).toBe(4);
-
-      return user.posts();
-    }).then(function (posts) {
-      expect(posts.length).toBe(3);
-
-      var post = posts[0];
-
-      return post.save({
-        createdAt: createdAt
+    }).posts().fetch().then(function (posts) {
+      return posts[0].save({
+        body: '<p>My new body here</p>'
       });
     }).then(function (post) {
-      expect(post.get('createdAt')).toBe(createdAt);
-      expect(post.get('id')).toBe(1);
-      expect(post.get('title')).toBe('Post 1');
-      expect(post.get('user_id')).toBe(4);
+      expect(post.get('body')).toBe('<p>My new body here</p>');
+    });
+
+    $httpBackend.flush();
+  }));
+
+  it('should resolve fn at method headers', inject(function ($httpBackend) {
+    $httpBackend.expectPATCH('/api/user/1', {
+      name: 'Victor'
+    }).respond({
+      id: 1,
+      name: 'Victor',
+      age: 18
+    });
+
+    var UserModel = User.extend({
+      method: {
+        save: {
+          headers: {
+            'My-Header': function () {
+              return 'My_Header_Value';
+            }
+          }
+        }
+      }
+    });
+
+    new UserModel({
+      id: 1
+    }).save({
+      name: 'Victor'
+    }).then(function (user) {
     });
 
     $httpBackend.flush();

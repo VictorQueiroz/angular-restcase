@@ -15,20 +15,22 @@ bower install --save angular-restcase
 angular.module('app', ['victorqueiroz.ngRestcase'])
   .config(function ($restcaseProvider) {
     // Because I'm a MongoDB guy.
-    $restcaseProvider.defaults.modelDefaults.idAttribute = '_id';
+    $restcaseProvider.defaults.model.idAttribute = '_id';
     // Or not:
-    $restcaseProvider.defaults.modelDefaults.idAttribute = 'id';
+    $restcaseProvider.defaults.model.idAttribute = 'id';
   })
   .factory('User', function ($restcase) {
     return $restcase.Model.extend({
-      modelName: 'User',
       url: '/api/user/{id}',
       // By default, there is no need for defining
       // new methods, but you can do that if you want
       methods: {
-        myMethod: {
+        saveMe: {
           method: 'GET',
-          url: '/api/my-custom-method/{id}'
+          url: '/api/my-custom-method/{id}',
+          headers: {
+            'X-CSRF-Token': 'm4n82hc9q8rknu9k608h9vuqvas0'
+          }
         }
       }
     });
@@ -57,41 +59,49 @@ angular.module('app', ['victorqueiroz.ngRestcase'])
   });
 ```
 
-## Relationship (methods)
-### hasMany(Target, foreignKey)
+## Relationship (approaches)
+
 ```js
-var Post = $restcase.Model.extend({
-  url: '/api/post/{id}',
-  modelName: 'Post',
-  getPostTitle: function () {
-    return this.get('title');
-  }
-});
-
-var User = $restcase.Model.extend({
-  url: '/api/user/{id}',
-  modelName: 'User',
-  posts: function () {
-    return this.hasMany(Post);
-  }
-});
-
-new User({
-  id: 1
-}).posts().then(function (posts) {
-  posts.forEach(function (post) {
-    expect(post.get('name')).toBe('The post title');
+angular.module('app', ['victorqueiroz.ngRestcase'])
+.factory('Post', function ($restcase) {
+  return $restcase.Model.extend({
+    url: '/api/post/{id}',
+    getPostTitle: function () {
+      return this.get('title');
+    }
   });
+})
+.factory('User', function (Post, $restcase) {
+  return $restcase.Model.extend({
+    url: '/api/user/{id}',
+    modelName: 'User',
+    posts: function () {
+      var Target = Post.extend({
+        url: '/api/user/{user_id}/posts/{id}'
+      });
+
+      return new Target({
+        user_id: this.get('id')
+      });
+    }
+  });
+})
+.controller('MyAppController', function ($scope, User) {
+  $scope.posts = [];
+
+  new User({
+    id: 1
+  }).posts().fetch().then(function (posts) {
+    $scope.posts = posts;
+  });
+
+  $scope.save = function (post) {
+    return post.save();
+  };
 });
 ```
 
-The code bellow, will make a request like this
-
-```
-$restcaseProvider.defaults.apiPrefix/User.prototype.modelName/User.prototype.idAttribute/Target.prototype.modelName + s
-```
-
-Resulting on this:
+The code bellow, will make a request like this at `new User({ id: 1 }).posts().fetch()`:
 
 ```
 GET /api/user/1/posts

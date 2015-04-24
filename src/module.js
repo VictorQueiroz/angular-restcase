@@ -15,15 +15,10 @@ function $RestcaseProvider () {
 
   this.$get = $RestcaseFactory;
 
-  var defaults = this.defaults = {
-    apiPrefix: '/api'
-  };
+  var defaults = this.defaults = {};
 
-  var modelDefaults = this.defaults.modelDefaults = {
+  this.defaults.model = {
     idAttribute: 'id',
-    methodDefaults: {
-      method: 'GET'
-    },
     url: '',
     methods: {
       fetch: {
@@ -38,7 +33,7 @@ function $RestcaseProvider () {
     }
   };
 
-  var collectionDefaults = this.defaults.collectionDefaults = {};
+  this.defaults.collection = {};
 
   function $RestcaseFactory ($http) {
     var $restcase = {};
@@ -90,80 +85,69 @@ function $RestcaseProvider () {
       return newUrl;
     }
 
-    var Collection = Restcase.Collection.extend(collectionDefaults);
-
     var Model = Restcase.Model;
+    var Collection = Restcase.Collection;
 
-    _.extend(Model.prototype, Restcase.Events, modelDefaults, {
-      hasMany: function hasMany (Target, foreignKey) {
-        var targetModelName = Target.prototype.modelName.toLowerCase();
-        var targetNewUrl = defaults.apiPrefix + '/' + this.modelName.toLowerCase() + '/' + attribute(this.idAttribute) + '/' + pluralize(targetModelName);
+    _.merge(Collection.prototype, Restcase.Events, defaults.collection);
 
-        targetNewUrl = resolve(targetNewUrl, this.attributes);
-
-        var attributes = {};
-        var newTargetMethods = {};
-
-        _.extend(newTargetMethods, modelDefaults.methods, {
-          fetch: {
-            url: targetNewUrl
-          }
-        });
-
-        var NewTarget = Target.extend({
-          methods: newTargetMethods
-        });
-
-        if(_.isUndefined(foreignKey)) {
-          foreignKey = toLowerCase(this.modelName) + '_id';
-        }
-
-        attributes[foreignKey] = this.get(this.idAttribute);
-
-        var newTarget = new NewTarget(attributes);
-
-        return newTarget.fetch();
-      },
+    _.merge(Model.prototype, Restcase.Events, defaults.model, {
       initialize: function () {
-        var model = this;
-        var attributes = this.attributes;
+        var model = this,
+            attributes = this.attributes;
 
-        if(_.isUndefined(this.url) || _.isEmpty(this.url)) {
-          this.url = defaults.apiPrefix + '/' + toLowerCase(this.modelName) + '/' + attribute(this.idAttribute);
+        if(_.isFunction(this.url)) {
+          this.url.apply(this);
         }
 
         // Defining methods
         _.forEach(this.methods, function (value, key) {
-          var options = _.extend({}, modelDefaults.methodDefaults, value);
+          var httpOptions = {
+            method: 'GET',
+            data: {},
+            headers: {}
+          };
 
-          this[key] = function (methodAttrs) {
-            var methodUrl;
+          _.extend(httpOptions, value);
 
-            if(key === 'save' && !model.isNew()) {
-              options.method = 'PATCH';
+          this[key] = function (methodAttrs, options) {
+            var methodUrl,
+                isSaving = (key === 'save'),
+                isNew = model.isNew();
+
+            if(_.isUndefined(options)) {
+              options = {};
             }
 
-            options.method = toUpperCase(options.method);
+            if(isSaving && (!isNew || options.patch === true)) {
+              httpOptions.method = 'PATCH';
+            }
 
+            httpOptions.method = toUpperCase(httpOptions.method);
+
+            // If value.url is defined
             if(angular.isDefined(value.url)) {
               methodUrl = value.url;
+            // Else, use the default one (model.url)
             } else if (angular.isDefined(model.url)) {
               methodUrl = model.url;
             }
 
-            options.url = resolve(methodUrl, attributes);
+            httpOptions.url = resolve(methodUrl, attributes);
 
-            options.data = {};
-
-            if(options.method === 'POST') {
-              _.extend(options.data, this.attributes);
-            } else if (options.method === 'PATCH' || options.method === 'PUT') {
+            if(httpOptions.method === 'POST') {
+              _.extend(httpOptions.data, this.attributes);
+            } else if (httpOptions.method === 'PATCH' || httpOptions.method === 'PUT') {
               if(angular.isDefined(methodAttrs)) {
-                _.extend(options.data, methodAttrs);
+                _.extend(httpOptions.data, methodAttrs);
               }
             }
 
-            return $http(options).then(function resolved (res) {
+            // Defining headers
+            if(_.isObject(value.headers)) {
+              _.extend(httpOptions.headers, value.headers);
+            }
+
+            return $http(httpOptions).then(function resolved (res) {
               return res.data;
             }).then(function (data) {
               // If the data is beeing received from the serverside
