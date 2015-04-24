@@ -15,20 +15,22 @@ bower install --save angular-restcase
 angular.module('app', ['victorqueiroz.ngRestcase'])
   .config(function ($restcaseProvider) {
     // Because I'm a MongoDB guy.
-    $restcaseProvider.defaults.modelDefaults.idAttribute = '_id';
+    $restcaseProvider.defaults.model.idAttribute = '_id';
     // Or not:
-    $restcaseProvider.defaults.modelDefaults.idAttribute = 'id';
+    $restcaseProvider.defaults.model.idAttribute = 'id';
   })
   .factory('User', function ($restcase) {
     return $restcase.Model.extend({
-      modelName: 'User',
       url: '/api/user/{id}',
       // By default, there is no need for defining
       // new methods, but you can do that if you want
       methods: {
-        myMethod: {
+        saveMe: {
           method: 'GET',
-          url: '/api/my-custom-method/{id}'
+          url: '/api/my-custom-method/{id}',
+          headers: {
+            'X-CSRF-Token': 'm4n82hc9q8rknu9k608h9vuqvas0'
+          }
         }
       }
     });
@@ -61,16 +63,15 @@ angular.module('app', ['victorqueiroz.ngRestcase'])
 
 ```js
 angular.module('app', ['victorqueiroz.ngRestcase'])
-.factory('Post', function () {
+.factory('Post', function ($restcase) {
   return $restcase.Model.extend({
     url: '/api/post/{id}',
-    modelName: 'Post',
     getPostTitle: function () {
       return this.get('title');
     }
   });
 })
-.factory('User', function (Post) {
+.factory('User', function (Post, $restcase) {
   return $restcase.Model.extend({
     url: '/api/user/{id}',
     modelName: 'User',
@@ -85,7 +86,7 @@ angular.module('app', ['victorqueiroz.ngRestcase'])
     }
   });
 })
-.controller('MyAppController', function (User) {
+.controller('MyAppController', function ($scope, User) {
   $scope.posts = [];
 
   new User({

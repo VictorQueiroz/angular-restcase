@@ -97,7 +97,9 @@ function $RestcaseProvider () {
         // Defining methods
         _.forEach(this.methods, function (value, key) {
           var httpOptions = {
-            method: 'GET'
+            method: 'GET',
+            data: {},
+            headers: {}
           };
 
           _.extend(httpOptions, value);
@@ -117,15 +119,15 @@ function $RestcaseProvider () {
 
             httpOptions.method = toUpperCase(httpOptions.method);
 
+            // If value.url is defined
             if(angular.isDefined(value.url)) {
               methodUrl = value.url;
+            // Else, use the default one (model.url)
             } else if (angular.isDefined(model.url)) {
               methodUrl = model.url;
             }
 
             httpOptions.url = resolve(methodUrl, attributes);
-
-            httpOptions.data = {};
 
             if(httpOptions.method === 'POST') {
               _.extend(httpOptions.data, this.attributes);
@@ -133,6 +135,11 @@ function $RestcaseProvider () {
               if(angular.isDefined(methodAttrs)) {
                 _.extend(httpOptions.data, methodAttrs);
               }
+            }
+
+            // Defining headers
+            if(_.isObject(value.headers)) {
+              _.extend(httpOptions.headers, value.headers);
             }
 
             return $http(httpOptions).then(function resolved (res) {
