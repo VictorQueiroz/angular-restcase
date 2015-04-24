@@ -71,4 +71,35 @@ describe('victorqueiroz.ngRestcase', function () {
 
     $httpBackend.flush();
   }));
+
+  it('should resolve fn at method headers', inject(function ($httpBackend) {
+    $httpBackend.expectPATCH('/api/user/1', {
+      name: 'Victor'
+    }).respond({
+      id: 1,
+      name: 'Victor',
+      age: 18
+    });
+
+    var UserModel = User.extend({
+      method: {
+        save: {
+          headers: {
+            'My-Header': function () {
+              return 'My_Header_Value';
+            }
+          }
+        }
+      }
+    });
+
+    new UserModel({
+      id: 1
+    }).save({
+      name: 'Victor'
+    }).then(function (user) {
+    });
+
+    $httpBackend.flush();
+  }));
 });

@@ -17,7 +17,7 @@ function $RestcaseProvider () {
 
   var defaults = this.defaults = {};
 
-  var modelDefaults = this.defaults.model = {
+  this.defaults.model = {
     idAttribute: 'id',
     url: '',
     methods: {
@@ -33,7 +33,7 @@ function $RestcaseProvider () {
     }
   };
 
-  var collectionDefaults = this.defaults.collectionDefaults = {};
+  this.defaults.collection = {};
 
   function $RestcaseFactory ($http) {
     var $restcase = {};
@@ -85,14 +85,19 @@ function $RestcaseProvider () {
       return newUrl;
     }
 
-    var Collection = Restcase.Collection.extend(collectionDefaults);
-
     var Model = Restcase.Model;
+    var Collection = Restcase.Collection;
 
-    _.extend(Model.prototype, Restcase.Events, modelDefaults, {
+    _.merge(Collection.prototype, Restcase.Events, defaults.collection);
+
+    _.merge(Model.prototype, Restcase.Events, defaults.model, {
       initialize: function () {
         var model = this,
             attributes = this.attributes;
+
+        if(_.isFunction(this.url)) {
+          this.url.apply(this);
+        }
 
         // Defining methods
         _.forEach(this.methods, function (value, key) {
