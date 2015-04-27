@@ -7,23 +7,17 @@ describe('victorqueiroz.ngRestcase', function () {
     Post = $restcase.Model.extend({
       url: '/api/post/{id}',
       author: function () {
-        var Target = User.extend({
+        return this.belongsTo(User, {
           url: '/api/post/' + this.get('id') + '/author'
-        });
-
-        return new Target({
-          id: this.get('id')
         });
       }
     });
     User = $restcase.Model.extend({
       url: '/api/user/{id}',
       posts: function () {
-        var Target = Post.extend({
+        return this.hasMany(Post, {
           url: '/api/user/' + this.get('id') + '/posts/{id}'
         });
-
-        return new Target();
       }
     });
   }));
@@ -189,6 +183,43 @@ describe('victorqueiroz.ngRestcase', function () {
       return author.save({
         name: 'New author name'
       });
+    });
+
+    $httpBackend.flush();
+  }));
+
+  it('should relate with options as a string', inject(function ($httpBackend) {
+    $httpBackend.expectGET('/api/post/30/author').respond({
+      id: 1,
+      name: 'Victor Queiroz'
+    });
+
+    $httpBackend.expectPATCH('/api/post/30/author', {
+      id: 1,
+      name: 'Victor Queiroz'
+    }).respond({
+      id: 1,
+      name: 'New name for the author'
+    });
+
+    var NewPost = Post.extend({
+      author: function () {
+        return this.belongsTo(User, '/api/post/{targetId}/author');
+      }
+    });
+
+    new NewPost({
+      id: 30
+    }).author().fetch().then(function (author) {
+      expect(author.get('name')).toBe('Victor Queiroz');
+
+      return author.save({
+        name: 'New name for the author'
+      }, {
+        patch: true
+      });
+    }).then(function (author) {
+      console.log(author);
     });
 
     $httpBackend.flush();

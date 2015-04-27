@@ -1,4 +1,4 @@
-var url_resolve_regexp = /(?:\{)(\w)+(?:\})/g;
+var url_resolve_regexp = /(?:\{)([^\/]*)+(?:\})/g;
 
 function toLowerCase (string) {
   return string.toLowerCase();
@@ -35,7 +35,7 @@ function $RestcaseProvider () {
 
   this.defaults.collection = {};
 
-  function $RestcaseFactory ($http, $interpolate) {
+  function $RestcaseFactory ($http, $parse) {
     var $restcase = {};
 
     function attribute (key) {
@@ -46,10 +46,20 @@ function $RestcaseProvider () {
       return string + 's';
     }
 
-    function resolve (url, attributes) {
+    function resolve (url, locals, options) {
+      var defaults = {
+        crop: true
+      };
+
+      if(_.isUndefined(options)) {
+        options = {};
+      }
+
       if(!_.isString(url)) {
         throw new Error('Url must be a string');
       }
+
+      options = _.extend({}, defaults, options);
 
       var newUrl = url;
       var matches = url.match(url_resolve_regexp);
@@ -58,23 +68,25 @@ function $RestcaseProvider () {
         return match.replace(regexp, '');
       }) : [];
 
-      _.forEach(attributes, function (value, key) {
+      _.forEach(urlAttrs, function (value, index) {
         if(urlAttrs.indexOf(key) !== -1) {
-          newUrl = newUrl.replace(attribute(key), value);
+          newUrl = newUrl.replace(attribute(key), $parse(key)(locals));
         }
       });
 
-      // Search for url attributes that are not
-      // defined in attributes for we can exclude
-      // them from the url, because they can't stay
-      // there.
-      _.forEach(urlAttrs, function (key) {
-        var value = attributes[key];
+      if(options.crop) {
+        // Search for url locals that are not
+        // defined in locals for we can exclude
+        // them from the url, because they can't stay
+        // there.
+        _.forEach(urlAttrs, function (key) {
+          var value = locals[key];
 
-        if(_.isUndefined(value) || _.isEmpty(value)) {
-          newUrl = newUrl.replace(attribute(key), '');
-        }
-      });
+          if(_.isUndefined(value) || _.isEmpty(value)) {
+            newUrl = newUrl.replace(attribute(key), '');
+          }
+        });
+      }
 
       // Remove possible unutilized /
       // at the end of the url, which is
@@ -88,9 +100,39 @@ function $RestcaseProvider () {
     var Model = Restcase.Model;
     var Collection = Restcase.Collection;
 
-    _.merge(Collection.prototype, Restcase.Events, defaults.collection);
+    _.extend(Collection.prototype, Restcase.Events, defaults.collection);
 
-    _.merge(Model.prototype, Restcase.Events, defaults.model, {
+    _.extend(Model.prototype, Restcase.Events, defaults.model, {
+      belongsTo: function (Target, options) {
+        var NewTarget = this._relation(Target, options);
+
+        return new NewTarget();
+      },
+      hasMany: function (Target, options) {
+        var NewTarget = this._relation(Target, options);
+
+        return new NewTarget();
+      },
+      _relation: function (Target, options) {
+        if(_.isString(options)) {
+          var url = options;
+          options = {
+            url: url
+          };
+        }
+
+        var locals = {
+          targetId: this.get('id')
+        };
+
+        var NewTarget = Target.extend({
+          url: $restcase.resolve(options.url, locals, {
+            crop: false
+          })
+        });
+
+        return NewTarget;
+      },
       initialize: function () {
         var model = this,
             attributes = this.attributes;
@@ -179,6 +221,7 @@ function $RestcaseProvider () {
 
     $restcase.Model = Model;
     $restcase.Collection = Collection;
+    $restcase.resolve = resolve;
 
     return $restcase;
   }
