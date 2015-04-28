@@ -195,8 +195,7 @@ describe('victorqueiroz.ngRestcase', function () {
     });
 
     $httpBackend.expectPATCH('/api/post/30/author', {
-      id: 1,
-      name: 'Victor Queiroz'
+      name: 'New name for the author'
     }).respond({
       id: 1,
       name: 'New name for the author'
@@ -219,7 +218,7 @@ describe('victorqueiroz.ngRestcase', function () {
         patch: true
       });
     }).then(function (author) {
-      console.log(author);
+      expect(author.get('id')).toBe(1);
     });
 
     $httpBackend.flush();

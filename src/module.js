@@ -46,55 +46,85 @@ function $RestcaseProvider () {
       return string + 's';
     }
 
-    function resolve (url, locals, options) {
-      var defaults = {
-        crop: true
+    function build (exp) {
+      return function (locals) {
+        var obj = locals;
+        exp.split('.').forEach(function (key) {
+          obj = obj[key];
+        });
+        return obj;
       };
+    }
 
-      if(_.isUndefined(options)) {
-        options = {};
+    function resolve (url, locals, options) {
+      function buildExp (exp) {
+        return function (locals) {
+          var obj = locals;
+          exp.split('.').forEach(function (key) {
+            if(_.isUndefined(obj)) {
+              return;
+            } if(!_.isUndefined(obj[key])) {
+              obj = obj[key];
+            } else {
+              obj = undefined;
+            }
+          });
+          return obj;
+        };
       }
+      
+      return function (locals, options) {
+        var defaults = {
+          crop: true
+        };
 
-      if(!_.isString(url)) {
-        throw new Error('Url must be a string');
-      }
-
-      options = _.extend({}, defaults, options);
-
-      var newUrl = url;
-      var matches = url.match(url_resolve_regexp);
-      var urlAttrs = matches ? matches.map(function (match) {
-        var regexp = /[\{\}]/g;
-        return match.replace(regexp, '');
-      }) : [];
-
-      _.forEach(urlAttrs, function (value, index) {
-        if(urlAttrs.indexOf(key) !== -1) {
-          newUrl = newUrl.replace(attribute(key), $parse(key)(locals));
+        if(_.isUndefined(options)) {
+          options = {};
         }
-      });
 
-      if(options.crop) {
-        // Search for url locals that are not
-        // defined in locals for we can exclude
-        // them from the url, because they can't stay
-        // there.
-        _.forEach(urlAttrs, function (key) {
-          var value = locals[key];
+        if(!_.isString(url)) {
+          throw new Error('Url must be a string');
+        }
 
-          if(_.isUndefined(value) || _.isEmpty(value)) {
-            newUrl = newUrl.replace(attribute(key), '');
+        options = _.extend({}, defaults, options);
+
+        var newUrl = url;
+        var matches = url.match(url_resolve_regexp);
+        var urlAttrs = matches ? matches.map(function (match) {
+          var regexp = /[\{\}]/g;
+          return match.replace(regexp, '');
+        }) : [];
+
+        _.forEach(urlAttrs, function (value) {
+          var exp = buildExp(value);
+
+          if(exp(locals)) {
+            newUrl = newUrl.replace(attribute(value), exp(locals));
           }
         });
-      }
 
-      // Remove possible unutilized /
-      // at the end of the url, which is
-      // very creepy. We don't wanna see
-      // that
-      newUrl = newUrl.replace(/(\/)+$/, '');
+        if(options.crop) {
+          // Search for url locals that are not
+          // defined in locals for we can exclude
+          // them from the url, because they can't stay
+          // there.
+          _.forEach(urlAttrs, function (key) {
+            var value = locals[key];
 
-      return newUrl;
+            if(_.isUndefined(value) || _.isEmpty(value)) {
+              newUrl = newUrl.replace(attribute(key), '');
+            }
+          });
+        }
+
+        // Remove possible unutilized /
+        // at the end of the url, which is
+        // very creepy. We don't wanna see
+        // that
+        newUrl = newUrl.replace(/(\/)+$/, '');
+
+        return newUrl;
+      };
     }
 
     var Model = Restcase.Model;
@@ -126,7 +156,7 @@ function $RestcaseProvider () {
         };
 
         var NewTarget = Target.extend({
-          url: $restcase.resolve(options.url, locals, {
+          url: $restcase.resolve(options.url)(locals, {
             crop: false
           })
         });
@@ -174,7 +204,7 @@ function $RestcaseProvider () {
               methodUrl = model.url;
             }
 
-            httpOptions.url = resolve(methodUrl, attributes);
+            httpOptions.url = resolve(methodUrl)(attributes);
 
             if(httpOptions.method === 'POST') {
               _.extend(httpOptions.data, this.attributes);

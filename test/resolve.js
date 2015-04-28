@@ -8,7 +8,7 @@ describe('victorqueiroz.ngRestcase', function () {
   }));
 
   it('should not crop undefined locals', function () {
-  	var str = $restcase.resolve('/my-custom/{id}/some-other/{anotherId}', {
+  	var str = $restcase.resolve('/my-custom/{id}/some-other/{anotherId}')({
   		anotherId: 100
   	}, {
   		crop: false
@@ -27,6 +27,6 @@ describe('victorqueiroz.ngRestcase', function () {
       }
     };
 
-    expect($restcase.resolve('/api/my-url/{key.object}/{anotherKey.value}', locals)).toBe('/api/my-url/1/10');
+    expect($restcase.resolve('/api/my-url/{key.object}/{anotherKey.value}')(locals)).toBe('/api/my-url/1/10');
   });
 });
