@@ -1,4 +1,4 @@
-var url_resolve_regexp = /(?:\{)(\w)+(?:\})/g;
+var url_resolve_regexp = /(?:\{)([^\/]*)+(?:\})/g;
 
 function toLowerCase (string) {
   return string.toLowerCase();
@@ -9,7 +9,10 @@ function toUpperCase (string) {
 }
 
 function $RestcaseProvider () {
-  if(angular.isUndefined(Restcase)) {
+  if(_.isUndefined(_)) {
+    throw new Error('You must load underscore/lodash before load this module, aborting');
+  }
+  if(_.isUndefined(Restcase)) {
     throw new Error('You must load Restcase before load this module, aborting');
   }
 
@@ -35,7 +38,7 @@ function $RestcaseProvider () {
 
   this.defaults.collection = {};
 
-  function $RestcaseFactory ($http) {
+  function $RestcaseFactory ($http, $parse) {
     var $restcase = {};
 
     function attribute (key) {
@@ -46,51 +49,131 @@ function $RestcaseProvider () {
       return string + 's';
     }
 
-    function resolve (url, attributes) {
-      if(!_.isString(url)) {
-        throw new Error('Url must be a string');
+    function build (exp) {
+      return function (locals) {
+        var obj = locals;
+        exp.split('.').forEach(function (key) {
+          obj = obj[key];
+        });
+        return obj;
+      };
+    }
+
+    function resolve (url, locals, options) {
+      function buildExp (exp) {
+        return function (locals) {
+          var obj = locals;
+          exp.split('.').forEach(function (key) {
+            if(_.isUndefined(obj)) {
+              return;
+            } if(!_.isUndefined(obj[key])) {
+              obj = obj[key];
+            } else {
+              obj = undefined;
+            }
+          });
+          return obj;
+        };
       }
+      
+      return function (locals, options) {
+        var defaults = {
+          crop: true
+        };
 
-      var newUrl = url;
-      var matches = url.match(url_resolve_regexp);
-      var urlAttrs = matches ? matches.map(function (match) {
-        var regexp = /[\{\}]/g;
-        return match.replace(regexp, '');
-      }) : [];
-
-      _.forEach(attributes, function (value, key) {
-        if(urlAttrs.indexOf(key) !== -1) {
-          newUrl = newUrl.replace(attribute(key), value);
+        if(_.isUndefined(options)) {
+          options = {};
         }
-      });
 
-      // Search for url attributes that are not
-      // defined in attributes for we can exclude
-      // them from the url, because they can't stay
-      // there.
-      _.forEach(urlAttrs, function (key) {
-        var value = attributes[key];
-
-        if(_.isUndefined(value) || _.isEmpty(value)) {
-          newUrl = newUrl.replace(attribute(key), '');
+        if(!_.isString(url)) {
+          throw new Error('Url must be a string');
         }
-      });
 
-      // Remove possible unutilized /
-      // at the end of the url, which is
-      // very creepy. We don't wanna see
-      // that
-      newUrl = newUrl.replace(/(\/)+$/, '');
+        options = _.extend({}, defaults, options);
 
-      return newUrl;
+        var newUrl = url;
+        var matches = url.match(url_resolve_regexp);
+        var urlAttrs = matches ? matches.map(function (match) {
+          var regexp = /[\{\}]/g;
+          return match.replace(regexp, '');
+        }) : [];
+
+        _.forEach(urlAttrs, function (value) {
+          var exp = buildExp(value);
+
+          if(exp(locals)) {
+            newUrl = newUrl.replace(attribute(value), exp(locals));
+          }
+        });
+
+        if(options.crop) {
+          // Search for url locals that are not
+          // defined in locals for we can exclude
+          // them from the url, because they can't stay
+          // there.
+          _.forEach(urlAttrs, function (key) {
+            var value = locals[key];
+
+            if(_.isUndefined(value) || _.isEmpty(value)) {
+              newUrl = newUrl.replace(attribute(key), '');
+            }
+          });
+        }
+
+        // Remove possible unutilized /
+        // at the end of the url, which is
+        // very creepy. We don't wanna see
+        // that
+        newUrl = newUrl.replace(/(\/)+$/, '');
+
+        return newUrl;
+      };
     }
 
     var Model = Restcase.Model;
     var Collection = Restcase.Collection;
 
-    _.merge(Collection.prototype, Restcase.Events, defaults.collection);
+    _.extend(Collection.prototype, Restcase.Events, defaults.collection);
 
-    _.merge(Model.prototype, Restcase.Events, defaults.model, {
+    _.extend(Model.prototype, Restcase.Events, defaults.model, {
+      belongsTo: function (Target, options) {
+        var NewTarget = this._relation(Target, options);
+
+        return new NewTarget();
+      },
+      hasMany: function (Target, options) {
+        var NewTarget = this._relation(Target, options);
+
+        return new NewTarget();
+      },
+      _relation: function (Target, options) {
+        if(_.isString(options)) {
+          var url = options;
+          options = {
+            url: url
+          };
+        }
+
+        if(_.isUndefined(options.url)) {
+          throw new Error('You must specify an url');
+        }
+
+        var locals = {
+          modelId: this.get(this.idAttribute)
+        };
+
+        if(!_.isUndefined(options.locals)) {
+          _.extend(locals, options.locals);
+        }
+
+        var NewTarget = Target.extend({
+          url: resolve(options.url)(locals, {
+            crop: false
+          })
+        });
+
+        return NewTarget;
+      },
       initialize: function () {
         var model = this,
             attributes = this.attributes;
@@ -132,7 +215,7 @@ function $RestcaseProvider () {
               methodUrl = model.url;
             }
 
-            httpOptions.url = resolve(methodUrl, attributes);
+            httpOptions.url = resolve(methodUrl)(attributes);
 
             if(httpOptions.method === 'POST') {
               _.extend(httpOptions.data, this.attributes);
@@ -179,6 +262,7 @@ function $RestcaseProvider () {
 
     $restcase.Model = Model;
     $restcase.Collection = Collection;
+    $restcase.resolve = resolve;
 
     return $restcase;
   }

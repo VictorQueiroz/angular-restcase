@@ -14,10 +14,9 @@ bower install --save angular-restcase
 ```js
 angular.module('app', ['victorqueiroz.ngRestcase'])
   .config(function ($restcaseProvider) {
-    // Because I'm a MongoDB guy.
-    $restcaseProvider.defaults.model.idAttribute = '_id';
-    // Or not:
-    $restcaseProvider.defaults.model.idAttribute = 'id';
+    _.extend($restcaseProvider.defaults.model, {
+      idAttribute: '_id'
+    });
   })
   .factory('User', function ($restcase) {
     return $restcase.Model.extend({
@@ -76,19 +75,38 @@ angular.module('app', ['victorqueiroz.ngRestcase'])
     url: '/api/user/{id}',
     modelName: 'User',
     posts: function () {
-      var Target = Post.extend({
-        url: '/api/user/{user_id}/posts/{id}'
-      });
-
-      return new Target({
-        user_id: this.get('id')
+      return this.hasMany(Post, {
+        url: '/api/user/{modelId}/posts/{id}'
       });
     }
   });
 })
-.controller('MyAppController', function ($scope, User) {
-  $scope.posts = [];
+```
 
+At the example below, `{modelId}` will be resolved as `User` model idAttribute value. It will make a request to:
+```
+GET /api/user/1/posts
+```
+
+And if you attribute try to save any returned model from `posts().fetch()`:
+
+```js
+new User({
+  id: 1
+}).posts().fetch().then(function (posts) {
+  return posts[0].save({
+    body: 'New post body'
+  });
+});
+```
+
+Assuming that: `posts[0].get('id') === 10`. It will make a request to:
+```
+GET /api/user/1/posts/10
+```
+
+```js
+.controller('MyAppController', function ($scope, User) {
   new User({
     id: 1
   }).posts().fetch().then(function (posts) {
@@ -99,10 +117,4 @@ angular.module('app', ['victorqueiroz.ngRestcase'])
     return post.save();
   };
 });
-```
-
-The code bellow, will make a request like this at `new User({ id: 1 }).posts().fetch()`:
-
-```
-GET /api/user/1/posts
 ```
