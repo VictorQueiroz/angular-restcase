@@ -9,7 +9,10 @@ function toUpperCase (string) {
 }
 
 function $RestcaseProvider () {
-  if(angular.isUndefined(Restcase)) {
+  if(_.isUndefined(_)) {
+    throw new Error('You must load underscore/lodash before load this module, aborting');
+  }
+  if(_.isUndefined(Restcase)) {
     throw new Error('You must load Restcase before load this module, aborting');
   }
 
@@ -151,12 +154,20 @@ function $RestcaseProvider () {
           };
         }
 
+        if(_.isUndefined(options.url)) {
+          throw new Error('You must specify an url');
+        }
+
         var locals = {
-          targetId: this.get('id')
+          modelId: this.get(this.idAttribute)
         };
 
+        if(!_.isUndefined(options.locals)) {
+          _.extend(locals, options.locals);
+        }
+
         var NewTarget = Target.extend({
-          url: $restcase.resolve(options.url)(locals, {
+          url: resolve(options.url)(locals, {
             crop: false
           })
         });

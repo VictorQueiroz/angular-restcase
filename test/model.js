@@ -1,14 +1,18 @@
 describe('victorqueiroz.ngRestcase', function () {
+  var $restcase, $httpBackend;
   var User, Post;
 
   beforeEach(module('victorqueiroz.ngRestcase'));
 
-  beforeEach(inject(function ($restcase) {
+  beforeEach(inject(function ($injector) {
+    $restcase = $injector.get('$restcase');
+    $httpBackend = $injector.get('$httpBackend');
+
     Post = $restcase.Model.extend({
       url: '/api/post/{id}',
       author: function () {
         return this.belongsTo(User, {
-          url: '/api/post/' + this.get('id') + '/author'
+          url: '/api/post/{modelId}/author'
         });
       }
     });
@@ -16,7 +20,7 @@ describe('victorqueiroz.ngRestcase', function () {
       url: '/api/user/{id}',
       posts: function () {
         return this.hasMany(Post, {
-          url: '/api/user/' + this.get('id') + '/posts/{id}'
+          url: '/api/user/{modelId}/posts/{id}'
         });
       }
     });
@@ -203,7 +207,7 @@ describe('victorqueiroz.ngRestcase', function () {
 
     var NewPost = Post.extend({
       author: function () {
-        return this.belongsTo(User, '/api/post/{targetId}/author');
+        return this.belongsTo(User, '/api/post/{modelId}/author');
       }
     });
 
@@ -223,4 +227,120 @@ describe('victorqueiroz.ngRestcase', function () {
 
     $httpBackend.flush();
   }));
+
+  it('should accept locals while defining relation', function () {
+    $httpBackend.expectGET('/api/user/10/comments/limit/5').respond([{
+      id: 1,
+      user_id: 10,
+      body: 'Comment 1'
+    }, {
+      id: 2,
+      user_id: 10,
+      body: 'Comment 2'
+    }, {
+      id: 3,
+      user_id: 10,
+      body: 'Comment 3'
+    }, {
+      id: 4,
+      user_id: 10,
+      body: 'Comment 4'
+    }, {
+      id: 5,
+      user_id: 10,
+      body: 'Comment 5'
+    }]);
+
+    var Comment = $restcase.Model.extend();
+
+    var NewUser = User.extend({
+      comments: function (options) {
+        return this.belongsTo(Comment, {
+          url: '/api/user/{modelId}/comments/limit/{limit}',
+          locals: options
+        });
+      }
+    });
+
+    new NewUser({
+      id: 10
+    }).comments({
+      limit: 5
+    }).fetch().then(function (comments) {
+      expect(comments.length).toBe(5);
+    });
+
+    $httpBackend.flush();
+  });
+
+  it('should support nested relation', function () {
+    $httpBackend.expectPOST('/api/user', {
+      name: 'My user name'
+    }).respond({
+      id: 10,
+      name: 'My user name'
+    });
+
+    $httpBackend.expectGET('/api/user/10/comments').respond([{
+      id: 1,
+      author_id: 10,
+      body: 'The comment body'
+    }]);
+
+    $httpBackend.expectGET('/api/comment/1/author').respond({
+      id: 10,
+      name: 'My user name'
+    });
+
+    $httpBackend.expectGET('/api/user/10/comments').respond([{
+      id: 1,
+      author_id: 10,
+      body: 'The comment body'
+    }]);
+
+    var Comment = $restcase.Model.extend({
+      url: '/api/comment/{id}',
+      author: function () {
+        return this.belongsTo(NewUser, {
+          url: '/api/comment/{modelId}/author'
+        });
+      }
+    });
+
+    var NewUser = User.extend({
+      url: '/api/user/{id}',
+      comments: function () {
+        return this.hasMany(Comment, {
+          url: '/api/user/{modelId}/comments'
+        });
+      }
+    });
+
+    var newUser = new NewUser();
+
+    newUser.set({
+      name: 'My user name'
+    });
+
+    newUser.save().then(function (user) {
+      expect(user.get('id')).toBe(10);
+      expect(user.get('name')).toBe('My user name');
+
+      return user.comments().fetch();
+    }).then(function (comments) {
+      expect(comments[0].get('body')).toBe('The comment body');
+      expect(comments[0].get('author_id')).toBe(10);
+
+      return comments[0].author().fetch();
+    }).then(function (author) {
+      expect(author.get('id')).toBe(10);
+
+      return author.comments().fetch();
+    }).then(function (comments) {
+      expect(comments[0].get('body')).toBe('The comment body');
+      expect(comments[0].get('author_id')).toBe(10);
+    });
+
+    $httpBackend.flush();
+  });
 });
