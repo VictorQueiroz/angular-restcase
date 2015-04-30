@@ -83,7 +83,7 @@ angular.module('app', ['victorqueiroz.ngRestcase'])
 })
 ```
 
-At the example below, `{modelId}` will be resolved as `User` model idAttribute value. It will make a request to:
+At the example below, `{modelId}` will be resolved as `User` model idAttribute value, but `{id}` will stay put, but will be filled when you execute any task (`fetch`, `save`) at extended model `Post` returned from `new User({ id: XX }).posts().fetch()`. It will make a request to:
 ```
 GET /api/user/1/posts
 ```
