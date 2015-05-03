@@ -1,10 +1,18 @@
 /**
  * angular-restcase - 
- * @version v0.0.32
+ * @version v0.0.33
  * @link https://github.com/VictorQueiroz/angular-restcase
  * @license MIT
  */
 (function () {
+  if (typeof module !== "undefined" &&
+    typeof exports !== "undefined" &&
+    module.exports === exports) {
+    module.exports = 'victorqueiroz.ngRestcase';
+  };
+})();
+
+(function (angular) {
 var url_resolve_regexp = /(?:\{)([^\/]*)+(?:\})/g;
 
 function toLowerCase (string) {
@@ -279,4 +287,4 @@ function $RestcaseProvider () {
 angular.module('victorqueiroz.ngRestcase', [])
   .provider('$restcase', $RestcaseProvider);
 
-});
+})(angular);

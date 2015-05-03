@@ -19,24 +19,36 @@ var banner = ['/**',
 ''].join('\n');
 
 gulp.task('build', function () {
+  var h = `(function () {
+  if (typeof module !== "undefined" &&
+    typeof exports !== "undefined" &&
+    module.exports === exports) {
+    module.exports = 'victorqueiroz.ngRestcase';
+  };
+})();
+
+(function (angular) {\n`;
+
+  var footer = '\n})(angular);';
+
   gulp.src(paths.scripts)
     .pipe(ngAnnotate())
     .pipe(concat('angular-restcase.js'))
     .pipe(wrapper({
-      header: '(function () {\n',
-      footer: '\n});'
+      header: h,
+      footer: footer
     }))
     .pipe(header(banner, { pkg: pkg }))
     .pipe(gulp.dest('dist'));
 
   gulp.src(paths.scripts)
     .pipe(ngAnnotate())
-    .pipe(uglify())
     .pipe(concat('angular-restcase.min.js'))
     .pipe(wrapper({
-      header: '(function () {\n',
-      footer: '\n});'
+      header: h,
+      footer: footer
     }))
+    .pipe(uglify())
     .pipe(header(banner, { pkg: pkg }))
     .pipe(gulp.dest('dist'));
 });
